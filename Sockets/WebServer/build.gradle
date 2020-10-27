@@ -15,6 +15,11 @@ task SimpleWebServer(type: JavaExec) {
 }
 
 task FunWebServer(type: JavaExec) {
+
+  dependencies {
+    compile files('/usr/share/java/json-20200518.jar')
+  }
+  
   group 'http'
   description 'Simple Http Demo'
 

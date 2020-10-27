@@ -25,6 +25,7 @@ import java.util.Random;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.nio.charset.Charset;
+import org.json.*;
 
 class WebServer {
   public static void main(String args[]) {
@@ -194,56 +195,88 @@ class WebServer {
             builder.append("File not found: " + file);
           }
         } else if (request.contains("multiply?")) {
-          if (request.matches("^multiply\\?num1=\\d*\\&num2=\\d*$")) {
+			if (request.matches("^multiply\\?num1=\\d*\\&num2=\\d*$")) {
 
-            Map<String, String> query_pairs = new LinkedHashMap<String, String>();
-            // extract path parameters
-            query_pairs = splitQuery(request.replace("multiply?", ""));
+				Map<String, String> query_pairs = new LinkedHashMap<String, String>();
+				// extract path parameters
+				query_pairs = splitQuery(request.replace("multiply?", ""));
 
-            // extract required fields from parameters
-            Integer num1 = Integer.parseInt(query_pairs.get("num1"));
-            Integer num2 = Integer.parseInt(query_pairs.get("num2"));
+				// extract required fields from parameters
+				Integer num1 = Integer.parseInt(query_pairs.get("num1"));
+				Integer num2 = Integer.parseInt(query_pairs.get("num2"));
 
-            // do math
-            Integer result = num1 * num2;
+				// do math
+				Integer result = num1 * num2;
 
-            // Generate response
-            builder.append("HTTP/1.1 200 OK\n");
-            builder.append("Content-Type: text/html; charset=utf-8\n");
-            builder.append("\n");
-            builder.append("Result is: " + result);
-          }
+				// Generate response
+				builder.append("HTTP/1.1 200 OK\n");
+				builder.append("Content-Type: text/html; charset=utf-8\n");
+				builder.append("\n");
+				builder.append("Result is: " + result);
+			} else {
+				// Error handling
+				builder.append("HTTP/1.1 400 Bad Request\n");
+				builder.append("Content-Type: text/html; charset=utf-8\n");
+				builder.append("\n");
+				builder.append("Could not multiply. Make sure format matches \"multiply?num1=#&num2=#\"");
+			}
 
-          // TODO: Include error handling here with a correct error code and
-          // a response that makes sense
-          else {
-            builder.append("HTTP/1.1 400 Bad Request\n");
-            builder.append("Content-Type: text/html; charset=utf-8\n");
-            builder.append("\n");
-            builder.append("Could not multiply. Make sure format matches \"multiply?num1=#&num2=#\""); /////////////////
-          }
+        } else if (request.contains("github?")) {        
+			// pulls the query from the request and runs it with GitHub's REST API
+			// check out https://docs.github.com/rest/reference/
+		  
+			try {
+				Map<String, String> query_pairs = new LinkedHashMap<String, String>();
+				query_pairs = splitQuery(request.replace("github?", ""));
+				String json = fetchURL("https://api.github.com/" + query_pairs.get("query"));
 
-        } else if (request.contains("github?")) {
-          // pulls the query from the request and runs it with GitHub's REST API
-          // check out https://docs.github.com/rest/reference/
-          //
-          // HINT: REST is organized by nesting topics. Figure out the biggest one first,
-          //     then drill down to what you care about
-          // "Owner's repo is named RepoName. Example: find RepoName's contributors" translates to
-          //     "/repos/OWNERNAME/REPONAME/contributors"
+				// saving it as JSON array (if it sere not an array it woudl need to be a JSONObject)
+				JSONArray repoArray = new JSONArray(json);
 
-          Map<String, String> query_pairs = new LinkedHashMap<String, String>();
-          query_pairs = splitQuery(request.replace("github?", ""));
-          String json = fetchURL("https://api.github.com/" + query_pairs.get("query"));
-          System.out.println(json);
+				// new JSON which we want to save later on
+				JSONArray newjSON = new JSONArray();
+				
+				String[] resultArray = new String[(repoArray.length() * 3)];
 
-          builder.append("Check the todos mentioned in the Java source file");
-          // TODO: Parse the JSON returned by your fetch and create an appropriate
-          // response
-          // and list the owner name, owner id and name of the public repo on your webpage, e.g.
-          // amehlhase, 46384989 -> memoranda
-          // amehlhase, 46384989 -> ser316examples
-          // amehlhase, 46384989 -> test316
+				// go through all the entries in the JSON array (so all the repos of the user)
+				for(int i=0; i<repoArray.length(); i++){
+
+					// now we have a JSON object, one repo 
+					JSONObject repo = repoArray.getJSONObject(i);
+
+					// owner is a JSON object in the repo object, get it and save it in own variable then read the login name
+					JSONObject owner = repo.getJSONObject("owner");
+
+					// get owner login
+					String ownername = owner.getString("login");
+					//System.out.println(ownername + ",  ");
+					resultArray[(i * 3)] = (ownername + ",  ");
+
+					// get owner id
+					int ownerId = owner.getInt("id");
+					//System.out.println(ownerId + "  ->  ");
+					resultArray[(i * 3) + 1] = (ownerId + "  ->  ");
+
+					// get repo name
+					String repoName = repo.getString("name");
+					//System.out.println(repoName + "\n");
+					resultArray[(i * 3) + 2] = (repoName + "<br>");
+				}
+				
+				builder.append("HTTP/1.1 200 OK\n");
+				builder.append("Content-Type: text/html; charset=utf-8\n");
+				builder.append("\n");
+				builder.append("Owner Name&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Owner ID&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Public Repo Name<br>");
+
+				for (int i = 0; i < resultArray.length; i++) {
+					builder.append(resultArray[i]);
+				}
+
+			} catch (Exception e) {
+				System.out.println("exception: " + e.getMessage());
+				e.printStackTrace();
+				builder.append("HTTP/1.1 400 Bad Request\n");
+			}
 
         } else {
           // if the request is not recognized at all
